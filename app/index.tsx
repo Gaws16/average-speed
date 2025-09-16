@@ -1,15 +1,15 @@
 import * as Location from "expo-location";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
+  ActivityIndicator,
   Platform,
   StyleSheet,
   Text,
-  TouchableOpacity,
   View,
 } from "react-native";
 // NOTE: react-native-maps is required dynamically on native only to avoid web bundling errors
-import checkpoints from "../constants/checkpoints";
-import segments from "../constants/segments";
+import { checkpoints } from "../constants/checkpoints";
+import { segments } from "../constants/segments";
 import {
   Coordinates,
   haversineDistanceMeters,
@@ -17,6 +17,21 @@ import {
   requestForegroundPermissionsAsync,
   watchHighAccuracyPosition,
 } from "../hooks/location";
+import BottomInfo from "./components/BottomInfo";
+import MapSection from "./components/MapSection";
+const segmentPaths: Record<string, { latitude: number; longitude: number }[]> =
+  (() => {
+    try {
+      return require("../constants/segments.paths.json");
+    } catch {
+      return {} as any;
+    }
+  })();
+const segmentsWithPaths = segments.map((s) => {
+  const key = `${s.road}|${s.name}`;
+  const path = (segmentPaths as any)[key];
+  return path && Array.isArray(path) && path.length >= 2 ? { ...s, path } : s;
+});
 
 type Phase = "idle" | "waiting_start" | "tracking" | "finished";
 
@@ -25,13 +40,15 @@ export default function Index() {
   let MapView: any = null;
   let Marker: any = null;
   let PROVIDER_GOOGLE: any = null;
+  let Polyline: any = null;
   if (Platform.OS !== "web") {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
     const rnMaps = require("react-native-maps");
     MapView = rnMaps.default;
     Marker = rnMaps.Marker;
     PROVIDER_GOOGLE = rnMaps.PROVIDER_GOOGLE;
+    Polyline = rnMaps.Polyline;
   }
-  const [permissionGranted, setPermissionGranted] = useState<boolean>(false);
   const [userCoords, setUserCoords] = useState<Coordinates | null>(null);
   const [startTimeMs, setStartTimeMs] = useState<number | null>(null);
   const [endTimeMs, setEndTimeMs] = useState<number | null>(null);
@@ -40,15 +57,19 @@ export default function Index() {
   const mapRef = useRef<any>(null);
   const didCenterRef = useRef<boolean>(false);
   const [currentSpeedKmh, setCurrentSpeedKmh] = useState<number>(0);
+  const [isMapReady, setIsMapReady] = useState<boolean>(false);
 
   const startPoint = checkpoints[0];
   const finishPoint = checkpoints[1];
 
   // Multi-segment state
-  const [activeSegmentId, setActiveSegmentId] = useState<string | null>(null);
+  const [activeSegmentIndex, setActiveSegmentIndex] = useState<number | null>(
+    null
+  );
   const activeSegment = useMemo(
-    () => segments.find((s) => s.id === activeSegmentId) || null,
-    [activeSegmentId]
+    () =>
+      activeSegmentIndex != null ? segmentsWithPaths[activeSegmentIndex] : null,
+    [activeSegmentIndex]
   );
 
   const distanceMeters = useMemo(() => {
@@ -73,7 +94,6 @@ export default function Index() {
   useEffect(() => {
     (async () => {
       const granted = await requestForegroundPermissionsAsync();
-      setPermissionGranted(granted);
       setPhase("waiting_start");
       if (!granted) return;
 
@@ -85,6 +105,7 @@ export default function Index() {
         const { latitude, longitude, speed } = current.coords;
         const coords = { latitude, longitude };
         setUserCoords(coords);
+        setIsMapReady(true);
         const kmh =
           typeof speed === "number" && !Number.isNaN(speed)
             ? Math.max(0, speed * 3.6)
@@ -108,6 +129,7 @@ export default function Index() {
         const { latitude, longitude } = loc.coords;
         const coords = { latitude, longitude };
         setUserCoords(coords);
+        if (!isMapReady) setIsMapReady(true);
         const speed = loc.coords.speed; // meters/second
         const kmh =
           typeof speed === "number" && !Number.isNaN(speed)
@@ -149,15 +171,15 @@ export default function Index() {
 
         // Multi-segment auto-detection
         if (!activeSegment && phase === "waiting_start") {
-          const seg = segments.find((s) =>
+          const idx = segmentsWithPaths.findIndex((s) =>
             isNear(
               { latitude: s.start.latitude, longitude: s.start.longitude },
               coords,
               s.radiusMeters ?? 30
             )
           );
-          if (seg) {
-            setActiveSegmentId(seg.id);
+          if (idx >= 0) {
+            setActiveSegmentIndex(idx);
             setStartTimeMs((prev) => prev ?? Date.now());
             setPhase("tracking");
           }
@@ -186,31 +208,12 @@ export default function Index() {
       watchSubRef.current?.remove();
       watchSubRef.current = null;
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [phase]);
 
-  const reset = () => {
-    setStartTimeMs(null);
-    setEndTimeMs(null);
-    setPhase("waiting_start");
-  };
+  // Removed manual reset UI for a cleaner top area
 
-  const statusText = (() => {
-    if (!permissionGranted) return "Location permission required";
-    switch (phase) {
-      case "waiting_start":
-        return activeSegment
-          ? `Waiting at ${activeSegment.name}`
-          : "Waiting at Start";
-      case "tracking":
-        return activeSegment ? `Tracking ${activeSegment.name}` : "Tracking...";
-      case "finished":
-        return activeSegment
-          ? `Finished ${activeSegment.name}`
-          : "Reached Finish";
-      default:
-        return "Initializing";
-    }
-  })();
+  // top status removed
 
   const initialRegion = userCoords
     ? {
@@ -228,80 +231,40 @@ export default function Index() {
 
   return (
     <View style={styles.container}>
-      <View style={styles.topBar}>
-        <Text style={styles.status}>{statusText}</Text>
-        <TouchableOpacity onPress={reset} style={styles.resetBtn}>
-          <Text style={styles.resetText}>Reset</Text>
-        </TouchableOpacity>
-      </View>
+      {/* Top bar removed for a cleaner look */}
 
-      {Platform.OS === "web" ? (
+      {!isMapReady ? (
+        <View style={[styles.map, styles.webPlaceholder]}>
+          <ActivityIndicator size="large" />
+          <Text style={{ marginTop: 12 }}>Locating…</Text>
+        </View>
+      ) : Platform.OS === "web" ? (
         <View style={[styles.map, styles.webPlaceholder]}>
           <Text style={styles.hintText}>
             Map not supported on web. Run on iOS/Android.
           </Text>
         </View>
       ) : (
-        <MapView
-          ref={mapRef}
-          style={styles.map}
-          provider={PROVIDER_GOOGLE}
+        <MapSection
+          MapView={MapView}
+          Marker={Marker}
+          Polyline={Polyline}
+          PROVIDER_GOOGLE={PROVIDER_GOOGLE}
           initialRegion={initialRegion}
-          showsUserLocation
-          followsUserLocation
-        >
-          {activeSegment && (
-            <>
-              <Marker
-                coordinate={{
-                  latitude: activeSegment.start.latitude,
-                  longitude: activeSegment.start.longitude,
-                }}
-                title={`${activeSegment.road}: Start`}
-                description={activeSegment.name}
-                pinColor="green"
-              />
-              <Marker
-                coordinate={{
-                  latitude: activeSegment.finish.latitude,
-                  longitude: activeSegment.finish.longitude,
-                }}
-                title={`${activeSegment.road}: Finish`}
-                description={activeSegment.name}
-                pinColor="red"
-              />
-            </>
-          )}
-          <Marker
-            coordinate={{
-              latitude: startPoint.latitude,
-              longitude: startPoint.longitude,
-            }}
-            title={startPoint.name}
-            description="Start checkpoint"
-            pinColor="green"
-          />
-          <Marker
-            coordinate={{
-              latitude: finishPoint.latitude,
-              longitude: finishPoint.longitude,
-            }}
-            title={finishPoint.name}
-            description="Finish checkpoint"
-            pinColor="red"
-          />
-        </MapView>
-      )}
-
-      <View style={styles.bottomBar}>
-        {phase === "finished" && avgKmH != null ? (
-          <Text style={styles.avgText}>
-            Average Speed: {avgKmH.toFixed(2)} km/h
-          </Text>
-        ) : activeSegment && phase === "tracking" && userCoords ? (
-          <Text style={styles.avgText}>
-            {activeSegment.name}: live avg{" "}
-            {(() => {
+          segments={segmentsWithPaths}
+          activeSegment={activeSegment}
+          startPoint={startPoint}
+          finishPoint={finishPoint}
+          mapRef={mapRef}
+          phase={phase}
+          speedBadgeValue={(function () {
+            if (avgKmH != null && phase === "finished") return avgKmH;
+            if (
+              activeSegment &&
+              phase === "tracking" &&
+              userCoords &&
+              startTimeMs
+            ) {
               const km =
                 haversineDistanceMeters(
                   {
@@ -313,47 +276,48 @@ export default function Index() {
                     longitude: userCoords.longitude,
                   }
                 ) / 1000;
-              const seconds = startTimeMs
-                ? (Date.now() - startTimeMs) / 1000
-                : 0;
+              const seconds = (Date.now() - startTimeMs) / 1000;
               const hours = seconds / 3600;
-              const v = hours > 0 ? km / hours : 0;
-              return v.toFixed(2);
-            })()}{" "}
-            km/h
-          </Text>
-        ) : (
-          <Text style={styles.hintText}>Move to Start to begin tracking</Text>
-        )}
-        <Text style={styles.currentSpeed}>
-          Current Speed: {currentSpeedKmh.toFixed(0)} km/h
-        </Text>
-      </View>
+              return hours > 0 ? km / hours : 0;
+            }
+            return null;
+          })()}
+        />
+      )}
+
+      <BottomInfo
+        phase={phase}
+        avgKmH={avgKmH}
+        activeSegmentName={activeSegment ? activeSegment.name : null}
+        userCoords={userCoords}
+        startTimeMs={startTimeMs}
+        currentSpeedKmh={currentSpeedKmh}
+        computeLiveAverage={() => {
+          if (!activeSegment || !userCoords || !startTimeMs) return 0;
+          const km =
+            haversineDistanceMeters(
+              {
+                latitude: activeSegment.start.latitude,
+                longitude: activeSegment.start.longitude,
+              },
+              {
+                latitude: userCoords.latitude,
+                longitude: userCoords.longitude,
+              }
+            ) / 1000;
+          const seconds = startTimeMs ? (Date.now() - startTimeMs) / 1000 : 0;
+          const hours = seconds / 3600;
+          const v = hours > 0 ? km / hours : 0;
+          return v;
+        }}
+      />
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#fff" },
-  topBar: {
-    paddingTop: 50,
-    paddingHorizontal: 16,
-    paddingBottom: 8,
-    backgroundColor: "#f7f7f7",
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: "#e0e0e0",
-  },
-  status: { fontSize: 16, fontWeight: "600" },
-  resetBtn: {
-    backgroundColor: "#e0e0e0",
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 8,
-  },
-  resetText: { fontSize: 14, fontWeight: "600" },
+  // top bar removed
   map: { flex: 1 },
   webPlaceholder: {
     alignItems: "center",

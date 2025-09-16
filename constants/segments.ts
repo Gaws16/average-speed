@@ -6,6 +6,7 @@ export type Segment = {
   finish: { latitude: number; longitude: number };
   limitKmH?: number;
   radiusMeters?: number; // default 30
+  path?: { latitude: number; longitude: number }[]; // optional road-following polyline
 };
 
 const R = (
