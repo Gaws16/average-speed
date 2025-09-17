@@ -10,12 +10,42 @@ import { segments as baseSegments } from "../constants/segments";
 
 type LatLng = { latitude: number; longitude: number };
 
+function toRadians(value: number): number {
+  return (value * Math.PI) / 180;
+}
+
+// Bearing from point A to B in degrees [0,360)
+function computeBearingDegrees(a: LatLng, b: LatLng): number {
+  const lat1 = toRadians(a.latitude);
+  const lat2 = toRadians(b.latitude);
+  const dLon = toRadians(b.longitude - a.longitude);
+  const y = Math.sin(dLon) * Math.cos(lat2);
+  const x =
+    Math.cos(lat1) * Math.sin(lat2) -
+    Math.sin(lat1) * Math.cos(lat2) * Math.cos(dLon);
+  const brng = (Math.atan2(y, x) * 180) / Math.PI; // [-180,180]
+  return (brng + 360) % 360;
+}
+
 async function fetchRoutePath(
   start: LatLng,
   finish: LatLng
 ): Promise<LatLng[] | null> {
   const coords = `${start.longitude},${start.latitude};${finish.longitude},${finish.latitude}`;
-  const url = `https://router.project-osrm.org/route/v1/driving/${coords}?overview=full&geometries=geojson`;
+  const brng = computeBearingDegrees(start, finish);
+  // Snap to carriageway aligned with desired direction (tolerance 20°) and avoid U-turn suggestions
+  const params = new URLSearchParams({
+    overview: "full",
+    geometries: "geojson",
+    alternatives: "false",
+    continue_straight: "true",
+    // bearings: "<bearing>,<tolerance>;<bearing>,<tolerance>"
+    bearings: `${Math.round(brng)},20;${Math.round(brng)},20`,
+    // approaches curb helps snap to the road side; ignored if unsupported
+    approaches: "curb;curb",
+    steps: "false",
+  });
+  const url = `https://router.project-osrm.org/route/v1/driving/${coords}?${params.toString()}`;
   const res = await fetch(url);
   if (!res.ok) return null;
   const json = await res.json();
