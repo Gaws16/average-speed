@@ -2,10 +2,10 @@ import { LatLng } from "react-native-maps";
 import { segments as baseSegments } from "../constants/segments";
 import { supabase } from "./supabase";
 
-export async function saveSegmentToDb(
+export const saveSegmentToDb = async (
   s: (typeof baseSegments)[number],
   pathLatLng: LatLng[]
-) {
+) => {
   const { error } = await supabase.from("road_segments").insert({
     id: `${s.road}:${s.name}`,
     road: s.road,
@@ -20,4 +20,4 @@ export async function saveSegmentToDb(
   } else {
     console.log(`Inserted ${s.road}:${s.name}`);
   }
-}
+};
