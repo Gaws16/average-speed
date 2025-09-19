@@ -1,10 +1,10 @@
 {
   "АМ \"Тракия\"|Вакарел → Ихтиман": {
-    "maxAvgKmH": 140,
-    "recommendedAvgKmH": 120
+    "maxAvgKmH": 105,
+    "recommendedAvgKmH": 100
   },
   "АМ \"Тракия\"|Ихтиман → Вакарел": {
-    "maxAvgKmH": 140,
-    "recommendedAvgKmH": 120
+    "maxAvgKmH": 105,
+    "recommendedAvgKmH": 100
   }
 }
