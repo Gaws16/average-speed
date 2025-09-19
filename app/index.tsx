@@ -17,8 +17,19 @@ import {
   requestForegroundPermissionsAsync,
   watchHighAccuracyPosition,
 } from "../hooks/location";
-import BottomInfo from "./components/BottomInfo";
 import MapSection from "./components/MapSection";
+import StatsBar from "./components/StatsBar";
+// Load limits sidecar (optional)
+const segmentLimits: Record<
+  string,
+  { maxAvgKmH?: number; recommendedAvgKmH?: number }
+> = (() => {
+  try {
+    return require("../constants/segment-limits.json");
+  } catch {
+    return {} as any;
+  }
+})();
 const segmentPaths: Record<string, { latitude: number; longitude: number }[]> =
   (() => {
     try {
@@ -257,41 +268,19 @@ export default function Index() {
           finishPoint={finishPoint}
           mapRef={mapRef}
           phase={phase}
-          speedBadgeValue={(function () {
-            if (avgKmH != null && phase === "finished") return avgKmH;
-            if (
-              activeSegment &&
-              phase === "tracking" &&
-              userCoords &&
-              startTimeMs
-            ) {
-              const km =
-                haversineDistanceMeters(
-                  {
-                    latitude: activeSegment.start.latitude,
-                    longitude: activeSegment.start.longitude,
-                  },
-                  {
-                    latitude: userCoords.latitude,
-                    longitude: userCoords.longitude,
-                  }
-                ) / 1000;
-              const seconds = (Date.now() - startTimeMs) / 1000;
-              const hours = seconds / 3600;
-              return hours > 0 ? km / hours : 0;
-            }
-            return null;
-          })()}
+          currentSpeedKmh={currentSpeedKmh}
+          badgeTop={96}
+          badgeRight={16}
+          limitsMap={segmentLimits}
         />
       )}
 
-      <BottomInfo
+      <StatsBar
         phase={phase}
         avgKmH={avgKmH}
         activeSegmentName={activeSegment ? activeSegment.name : null}
         userCoords={userCoords}
         startTimeMs={startTimeMs}
-        currentSpeedKmh={currentSpeedKmh}
         computeLiveAverage={() => {
           if (!activeSegment || !userCoords || !startTimeMs) return 0;
           const km =

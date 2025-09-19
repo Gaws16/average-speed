@@ -12,7 +12,7 @@ type Props = {
   computeLiveAverage: () => number;
 };
 
-export default function BottomInfo({
+export default function StatsBar({
   phase,
   avgKmH,
   activeSegmentName,
@@ -43,6 +43,4 @@ const styles = StyleSheet.create({
     borderTopColor: "#e0e0e0",
   },
   avgText: { fontSize: 18, fontWeight: "700" },
-  hintText: { fontSize: 14, color: "#666" },
-  currentSpeed: { marginTop: 16, fontSize: 14, fontWeight: "600" },
 });

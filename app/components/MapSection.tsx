@@ -1,5 +1,8 @@
 import React from "react";
-import { Platform, StyleSheet, Text, View } from "react-native";
+import { Platform, StyleSheet } from "react-native";
+import MapMarkers from "./MapMarkers";
+import MapPolylines from "./MapPolylines";
+import SpeedBadge from "./SpeedBadge";
 
 type LatLng = { latitude: number; longitude: number };
 
@@ -24,7 +27,13 @@ type Props = {
   finishPoint: LatLng & { name?: string };
   mapRef: any;
   phase: "idle" | "waiting_start" | "tracking" | "finished";
-  speedBadgeValue: number | null;
+  currentSpeedKmh: number;
+  badgeTop?: number;
+  badgeRight?: number;
+  limitsMap?: Record<
+    string,
+    { maxAvgKmH?: number; recommendedAvgKmH?: number }
+  >;
 };
 
 export default function MapSection({
@@ -39,7 +48,10 @@ export default function MapSection({
   finishPoint,
   mapRef,
   phase,
-  speedBadgeValue,
+  currentSpeedKmh,
+  badgeTop = 64,
+  badgeRight = 16,
+  limitsMap,
 }: Props) {
   if (Platform.OS === "web") return null;
 
@@ -52,123 +64,30 @@ export default function MapSection({
       showsUserLocation
       followsUserLocation
     >
-      {/* Segment polylines */}
-      {segments.map((s, index) => (
-        <Polyline
-          key={`${s.road}-${s.name}-line-${index}`}
-          coordinates={
-            s.path && s.path.length >= 2 ? s.path : [s.start, s.finish]
-          }
-          strokeColor="#d32f2f"
-          strokeWidth={3}
-        />
-      ))}
-      {segments.map((s, index) => (
-        <React.Fragment key={`${s.road}-${s.name}-${index}`}>
-          <Marker
-            key={`${s.road}-${s.name}-start-${index}`}
-            coordinate={{
-              latitude: s.start.latitude,
-              longitude: s.start.longitude,
-            }}
-            title={`${s.road}: Start`}
-            description={s.name}
-            pinColor="red"
-            tracksViewChanges={false}
-          />
-          <Marker
-            key={`${s.road}-${s.name}-finish-${index}`}
-            coordinate={{
-              latitude: s.finish.latitude,
-              longitude: s.finish.longitude,
-            }}
-            title={`${s.road}: Finish`}
-            description={s.name}
-            pinColor="red"
-            tracksViewChanges={false}
-          />
-        </React.Fragment>
-      ))}
-
-      {activeSegment && (
-        <>
-          <Marker
-            coordinate={{
-              latitude: activeSegment.start.latitude,
-              longitude: activeSegment.start.longitude,
-            }}
-            title={`${activeSegment.road}: Start`}
-            description={activeSegment.name}
-            pinColor="red"
-          />
-          <Marker
-            coordinate={{
-              latitude: activeSegment.finish.latitude,
-              longitude: activeSegment.finish.longitude,
-            }}
-            title={`${activeSegment.road}: Finish`}
-            description={activeSegment.name}
-            pinColor="red"
-          />
-        </>
-      )}
-
-      <Marker
-        coordinate={{
-          latitude: startPoint.latitude,
-          longitude: startPoint.longitude,
-        }}
-        title={startPoint.name}
-        description="Start checkpoint"
-        pinColor="red"
-      />
-      <Marker
-        coordinate={{
-          latitude: finishPoint.latitude,
-          longitude: finishPoint.longitude,
-        }}
-        title={finishPoint.name}
-        description="Finish checkpoint"
-        pinColor="red"
+      <MapPolylines Polyline={Polyline} segments={segments} />
+      <MapMarkers
+        Marker={Marker}
+        segments={segments}
+        activeSegment={activeSegment as any}
+        startPoint={startPoint}
+        finishPoint={finishPoint}
       />
 
-      {/* On-map circular speed badge */}
-      {speedBadgeValue != null && (
-        <View pointerEvents="none" style={styles.badgeContainer}>
-          <View style={styles.badge}>
-            <Text style={styles.badgeValue}>{speedBadgeValue.toFixed(1)}</Text>
-            <Text style={styles.badgeUnit}>km/h</Text>
-          </View>
-        </View>
-      )}
+      <SpeedBadge
+        valueKmh={currentSpeedKmh}
+        top={badgeTop}
+        right={badgeRight}
+        glowDanger={(() => {
+          if (!activeSegment || !limitsMap) return false;
+          const k = `${activeSegment.road}|${activeSegment.name}`;
+          const max = limitsMap[k]?.maxAvgKmH;
+          return typeof max === "number" && currentSpeedKmh > max;
+        })()}
+      />
     </MapView>
   );
 }
 
 const styles = StyleSheet.create({
-  badgeContainer: {
-    position: "absolute",
-    top: 16,
-    right: 16,
-  },
-  badge: {
-    width: 76,
-    height: 76,
-    borderRadius: 38,
-    backgroundColor: "rgba(25, 118, 210, 0.9)",
-    alignItems: "center",
-    justifyContent: "center",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.3,
-    shadowRadius: 4,
-    elevation: 4,
-  },
-  badgeValue: { color: "#fff", fontSize: 22, fontWeight: "800" },
-  badgeUnit: {
-    color: "#e3f2fd",
-    fontSize: 12,
-    marginTop: 2,
-    fontWeight: "700",
-  },
+  // styles for badge moved to SpeedBadge
 });
