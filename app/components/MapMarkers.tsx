@@ -7,6 +7,7 @@ export type SegmentLite = {
   name: string;
   start: LatLng;
   finish: LatLng;
+  path?: LatLng[];
 };
 
 type Props = {
@@ -26,53 +27,72 @@ export default function MapMarkers({
 }: Props) {
   return (
     <>
-      {segments.map((s, index) => (
-        <React.Fragment key={`${s.road}-${s.name}-${index}`}>
-          <Marker
-            key={`${s.road}-${s.name}-start-${index}`}
-            coordinate={{
-              latitude: s.start.latitude,
-              longitude: s.start.longitude,
-            }}
-            title={`${s.road}: Start`}
-            description={s.name}
-            pinColor="red"
-            tracksViewChanges={false}
-          />
-          <Marker
-            key={`${s.road}-${s.name}-finish-${index}`}
-            coordinate={{
-              latitude: s.finish.latitude,
-              longitude: s.finish.longitude,
-            }}
-            title={`${s.road}: Finish`}
-            description={s.name}
-            pinColor="red"
-            tracksViewChanges={false}
-          />
-        </React.Fragment>
-      ))}
+      {segments.map((s, index) => {
+        const startCoord = s.path && s.path.length >= 1 ? s.path[0] : s.start;
+        const endCoord =
+          s.path && s.path.length >= 1 ? s.path[s.path.length - 1] : s.finish;
+        return (
+          <React.Fragment key={`${s.road}-${s.name}-${index}`}>
+            <Marker
+              key={`${s.road}-${s.name}-start-${index}`}
+              coordinate={{
+                latitude: startCoord.latitude,
+                longitude: startCoord.longitude,
+              }}
+              title={`${s.road}: Start`}
+              description={s.name}
+              pinColor="red"
+              tracksViewChanges={false}
+            />
+            <Marker
+              key={`${s.road}-${s.name}-finish-${index}`}
+              coordinate={{
+                latitude: endCoord.latitude,
+                longitude: endCoord.longitude,
+              }}
+              title={`${s.road}: Finish`}
+              description={s.name}
+              pinColor="red"
+              tracksViewChanges={false}
+            />
+          </React.Fragment>
+        );
+      })}
 
       {activeSegment && (
         <>
-          <Marker
-            coordinate={{
-              latitude: activeSegment.start.latitude,
-              longitude: activeSegment.start.longitude,
-            }}
-            title={`${activeSegment.road}: Start`}
-            description={activeSegment.name}
-            pinColor="red"
-          />
-          <Marker
-            coordinate={{
-              latitude: activeSegment.finish.latitude,
-              longitude: activeSegment.finish.longitude,
-            }}
-            title={`${activeSegment.road}: Finish`}
-            description={activeSegment.name}
-            pinColor="red"
-          />
+          {(() => {
+            const startCoord =
+              activeSegment.path && activeSegment.path.length >= 1
+                ? activeSegment.path[0]
+                : activeSegment.start;
+            const endCoord =
+              activeSegment.path && activeSegment.path.length >= 1
+                ? activeSegment.path[activeSegment.path.length - 1]
+                : activeSegment.finish;
+            return (
+              <>
+                <Marker
+                  coordinate={{
+                    latitude: startCoord.latitude,
+                    longitude: startCoord.longitude,
+                  }}
+                  title={`${activeSegment.road}: Start`}
+                  description={activeSegment.name}
+                  pinColor="red"
+                />
+                <Marker
+                  coordinate={{
+                    latitude: endCoord.latitude,
+                    longitude: endCoord.longitude,
+                  }}
+                  title={`${activeSegment.road}: Finish`}
+                  description={activeSegment.name}
+                  pinColor="red"
+                />
+              </>
+            );
+          })()}
         </>
       )}
 
