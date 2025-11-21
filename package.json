@@ -10,6 +10,7 @@
     "web": "expo start --web",
     "lint": "expo lint",
     "routes:fetch": "tsx ./scripts/fetch-routes.ts",
+    "routes:fetch-addToDb": "tsx ./scripts/fetch-addToDb-routes.ts",
     "routes:apply": "tsx ./scripts/apply-routes.ts"
   },
   "dependencies": {
@@ -17,6 +18,8 @@
     "@react-navigation/bottom-tabs": "^7.4.0",
     "@react-navigation/elements": "^2.6.3",
     "@react-navigation/native": "^7.1.8",
+    "@supabase/supabase-js": "^2.57.4",
+    "dotenv": "^17.2.2",
     "expo": "~54.0.7",
     "expo-constants": "~18.0.8",
     "expo-font": "~14.0.8",

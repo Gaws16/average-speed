@@ -7,6 +7,7 @@
 import fs from "fs";
 import path from "path";
 import { segments as baseSegments } from "../constants/segments";
+import { saveSegmentToDb } from "@/utils/saveSegments";
 
 type LatLng = { latitude: number; longitude: number };
 
@@ -74,6 +75,7 @@ async function main() {
       if (pathLatLng && pathLatLng.length >= 2) {
         results[key] = pathLatLng;
         console.log(`Fetched: ${key} (${pathLatLng.length} points)`);
+        await saveSegmentToDb(s, pathLatLng);
         // Be nice to the demo server
         await new Promise((r) => setTimeout(r, 250));
       } else {
